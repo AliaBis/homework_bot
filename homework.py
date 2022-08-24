@@ -10,10 +10,6 @@ import os
 from http import HTTPStatus
 
 load_dotenv()
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s, %(levelname)s, %(message)s'
-)
 
 PRACTICUM_TOKEN = os.getenv('PRAKTIKUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -28,6 +24,12 @@ HOMEWORK_STATUSES = {
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s, %(levelname)s, %(message)s'
+)
 
 
 class Exception(Exception):
@@ -92,9 +94,10 @@ def parse_status(homework):
     homework_name = homework['homework_name']
     homework_status = homework['status']
     if homework_status not in HOMEWORK_STATUSES:
-        logging.error('Статус не обнаружен в списке')
-        send_message('Статус не обнаружен в списке')
-        raise Exception('Статус не обнаружен в списке')
+        message = 'Не удалось получить данные о домашке'
+        logging.error(message)
+        send_message('Статус не обнаружен')
+        raise Exception('Статус не обнаружен')
     verdict = HOMEWORK_STATUSES[homework_status]
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
@@ -119,30 +122,28 @@ def check_tokens():
 
 def main():
     """Основная логика работы бота."""
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    current_timestamp = int(time.time())
+    ERROR_CACHE_MESSAGE = ''
     if check_tokens() is False:
         logging.critical('Ты сломала всё!Нужна помощь!')
         return 0
-    bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    current_timestamp = int(time.time())
     while True:
         try:
             response = get_api_answer(current_timestamp)
             homework = check_response(response)
             logging.info(f'Домашка прилетела {homework}')
             if len(homework) > 0:
-                message(parse_status(homework[0]))
+                message = parse_status(homework[0])
             logging.info('Кайф, отдыхаю!')
             current_timestamp = response['current_date']
             time.sleep(RETRY_TIME)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
+            if message != ERROR_CACHE_MESSAGE:
+                send_message(bot, message)
+                ERROR_CACHE_MESSAGE = message
             time.sleep(RETRY_TIME)
-        # else:
-        #     stop = input('Прервать работу бота? (Y)')
-        #     if stop == 'Y':
-        #         break
-        #     elif stop != 'Y':
-        #         print('Бот работает дальше')
 
 
 if __name__ == '__main__':
