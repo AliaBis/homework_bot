@@ -1,13 +1,14 @@
-# from telegram import Bot
 import telegram
 import logging
+
 from dotenv import load_dotenv
 import requests
 import time
-# import json
-# import sys
+
 import os
 from http import HTTPStatus
+
+import exceptions
 
 load_dotenv()
 
@@ -30,12 +31,9 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s, %(levelname)s, %(message)s'
 )
-
-
-class Exception(Exception):
-    """Обработка исключений."""
-
-    pass
+logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+logger.addHandler(handler)
 
 
 def send_message(bot, message):
@@ -48,9 +46,9 @@ def send_message(bot, message):
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
         logging.info(
             f'Бот отправил сообщение: {message} в чат {TELEGRAM_CHAT_ID}.')
-    except Exception:
+    except exceptions.SendMessageFailure:
         logging.error('Бот не смог отправить сообщение.')
-        return 'Не удалось отправить сообщение.'
+        return 'Бот не смог отправить сообщение.'
 
 
 def get_api_answer(current_timestamp):
@@ -68,7 +66,7 @@ def get_api_answer(current_timestamp):
             f'Сбой работы. Ответ сервера {homework_statuses.status_code}')
         send_message(
             f'Сбой работы. Ответ сервера {homework_statuses.status_code}')
-        raise Exception(
+        raise exceptions.APIResponseStatusCodeException(
             f'Сбой работы. Ответ сервера {homework_statuses.status_code}')
     status_json = homework_statuses.json()
     return status_json
@@ -82,7 +80,7 @@ def check_response(response):
     if not isinstance(response['homeworks'], list):
         logging.error('Запрос к серверу пришёл не в виде списка')
         send_message('Запрос к серверу пришёл не в виде списка')
-        raise Exception('Некорректный ответ сервера')
+        raise exceptions.CheckResponseException('Некорректный ответ сервера')
     return response['homeworks']
 
 
@@ -94,10 +92,10 @@ def parse_status(homework):
     homework_name = homework['homework_name']
     homework_status = homework['status']
     if homework_status not in HOMEWORK_STATUSES:
-        message = 'Не удалось получить данные о домашке'
-        logging.error(message)
-        send_message('Статус не обнаружен')
-        raise Exception('Статус не обнаружен')
+        logging.error('Статус не обнаружен в списке')
+        send_message('Статус не обнаружен в списке')
+        raise exceptions.UnknownHWStatusException(
+            'Статус не обнаружен в списке')
     verdict = HOMEWORK_STATUSES[homework_status]
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
@@ -108,41 +106,50 @@ def check_tokens():
     Если отсутствует хотя бы одна переменная окружения —
     функция должна вернуть False, иначе — True.
     """
-    if PRACTICUM_TOKEN is None:
-        logging.error('PRACTICUM_TOKEN не найден')
-        return False
-    if TELEGRAM_CHAT_ID is None:
-        logging.error('TELEGRAM_CHAT_ID не найден')
-        return False
-    if TELEGRAM_TOKEN is None:
-        logging.error('TELEGRAM_TOKEN не найден')
-        return False
-    return True
+    return all([TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, PRACTICUM_TOKEN])
 
 
 def main():
     """Основная логика работы бота."""
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    current_timestamp = int(time.time())
-    ERROR_CACHE_MESSAGE = ''
-    if check_tokens() is False:
-        logging.critical('Ты сломала всё!Нужна помощь!')
-        return 0
+    if not check_tokens():
+        message = 'Отсутствует необходимая переменная среды'
+        logger.critical(message)
+        raise exceptions.MissingRequiredTokenException(message)
+
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    current_timestamp = int(time.time()- 604800)
+    previous_status = None
+    previous_error = None
+
     while True:
         try:
             response = get_api_answer(current_timestamp)
-            homework = check_response(response)
-            logging.info(f'Домашка прилетела {homework}')
-            if len(homework) > 0:
-                message = parse_status(homework[0])
-            logging.info('Кайф, отдыхаю!')
-            current_timestamp = response['current_date']
+        except exceptions.IncorrectAPIResponseException as error:
+            if str(error) != previous_error:
+                previous_error = str(error)
+                send_message(bot, error)
+            logger.error(error)
             time.sleep(RETRY_TIME)
+            continue
+        try:
+            homeworks = check_response(response)
+            homework_status = homeworks[0].get('status')
+            if homework_status != previous_status:
+                previous_status = homework_status
+                message = parse_status(homeworks[0])
+                send_message(bot, message)
+            else:
+                logger.debug('Обновления статуса нет')
+
+            time.sleep(RETRY_TIME)
+
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
-            if message != ERROR_CACHE_MESSAGE:
+            if previous_error != str(error):
+                previous_error = str(error)
                 send_message(bot, message)
-                ERROR_CACHE_MESSAGE = message
+            logger.error(message)
             time.sleep(RETRY_TIME)
 
 
