@@ -124,7 +124,7 @@ def main():
             response = get_api_answer(current_timestamp)
         except exceptions.IncorrectAPIResponseException:
             print('Проверка ответа API')
-        except:
+        except InterruptedError:
             print('Неожиданная ошибка')
         else:
             print('Бот все-таки работает!')
@@ -142,7 +142,7 @@ def main():
 
             time.sleep(RETRY_TIME)
         except Exception as error:
-            message = f'Твой бот не работает!'
+            message = ('Твой бот не работает!')
             if previous_error != str(error):
                 previous_error = str(error)
                 send_message(bot, message)
