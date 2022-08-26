@@ -48,7 +48,6 @@ def send_message(bot, message):
             f'Бот отправил сообщение: {message} в чат {TELEGRAM_CHAT_ID}.')
     except exceptions.SendMessageFailure:
         logging.error('Бот не смог отправить сообщение.')
-        return 'Бот не смог отправить сообщение.'
 
 
 def get_api_answer(current_timestamp):
@@ -114,24 +113,23 @@ def main():
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     if not check_tokens():
         message = 'Отсутствует необходимая переменная среды'
-        logger.critical(message)
-        raise exceptions.MissingRequiredTokenException(message)
-
+        logging.critical(message)
+        raise SystemExit
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time() - 604800)
     previous_status = None
     previous_error = None
-
     while True:
         try:
             response = get_api_answer(current_timestamp)
-        except exceptions.IncorrectAPIResponseException as error:
-            if str(error) != previous_error:
-                previous_error = str(error)
-                send_message(bot, error)
-            logger.error(error)
+        except exceptions.IncorrectAPIResponseException:
+            print('Проверка ответа API')
+        except:
+            print('Неожиданная ошибка')
+        else:
+            print('Бот все-таки работает!')
+        finally:
             time.sleep(RETRY_TIME)
-            continue
         try:
             homeworks = check_response(response)
             homework_status = homeworks[0].get('status')
@@ -140,16 +138,15 @@ def main():
                 message = parse_status(homeworks[0])
                 send_message(bot, message)
             else:
-                logger.debug('Обновления статуса нет')
+                logging.error('Обновления статуса нет')
 
             time.sleep(RETRY_TIME)
-
         except Exception as error:
-            message = f'Сбой в работе программы: {error}'
+            message = f'Твой бот не работает!'
             if previous_error != str(error):
                 previous_error = str(error)
                 send_message(bot, message)
-            logger.error(message)
+            logging.error(message)
             time.sleep(RETRY_TIME)
 
 
