@@ -59,7 +59,8 @@ def get_api_answer(current_timestamp):
     homework_statuses = requests.get(
         ENDPOINT,
         headers=HEADERS,
-        params=params)
+        params=params
+    )
     if homework_statuses.status_code != HTTPStatus.OK:
         logging.error(
             f'Сбой работы. Ответ сервера {homework_statuses.status_code}')
@@ -101,7 +102,6 @@ def parse_status(homework):
 
 def check_tokens():
     """Проверяет доступность переменных окружения.
-    которые необходимы для работы программы.
     Если отсутствует хотя бы одна переменная окружения —
     функция должна вернуть False, иначе — True.
     """
@@ -147,6 +147,7 @@ def main():
                 previous_error = str(error)
                 send_message(bot, message)
             logging.error(message)
+        finally:
             time.sleep(RETRY_TIME)
 
 
