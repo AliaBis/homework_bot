@@ -118,14 +118,11 @@ def main():
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time() - 604800)
     previous_status = None
-    previous_error = None
     while True:
         try:
             response = get_api_answer(current_timestamp)
         except exceptions.IncorrectAPIResponseException:
             print('Проверка ответа API')
-        except InterruptedError:
-            print('Неожиданная ошибка')
         else:
             print('Бот все-таки работает!')
         finally:
@@ -139,14 +136,6 @@ def main():
                 send_message(bot, message)
             else:
                 logging.error('Обновления статуса нет')
-
-            time.sleep(RETRY_TIME)
-        except Exception as error:
-            message = ('Твой бот не работает!')
-            if previous_error != str(error):
-                previous_error = str(error)
-                send_message(bot, message)
-            logging.error(message)
         finally:
             time.sleep(RETRY_TIME)
 
