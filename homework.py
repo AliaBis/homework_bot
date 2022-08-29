@@ -121,21 +121,14 @@ def main():
     while True:
         try:
             response = get_api_answer(current_timestamp)
-        except exceptions.IncorrectAPIResponseException:
-            print('Проверка ответа API')
-        else:
-            print('Бот все-таки работает!')
-        finally:
-            time.sleep(RETRY_TIME)
-        try:
             homeworks = check_response(response)
             homework_status = homeworks[0].get('status')
             if homework_status != previous_status:
                 previous_status = homework_status
                 message = parse_status(homeworks[0])
                 send_message(bot, message)
-            else:
-                logging.error('Обновления статуса нет')
+        except exceptions.IncorrectAPIResponseException:
+            logging.info('Обновления статуса нет')
         finally:
             time.sleep(RETRY_TIME)
 
