@@ -45,7 +45,7 @@ def send_message(bot, message):
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
         logging.info(
-            f'Бот отправил сообщение: {message} в чат {TELEGRAM_CHAT_ID}.')
+            f'Бот отправил сообщение в чат {TELEGRAM_CHAT_ID}: {message}.')
     except exceptions.SendMessageFailure:
         logging.error('Бот не смог отправить сообщение.')
 
